@@ -68,7 +68,7 @@ def call_llama(question, item, prompt):
     messages=messages,
     temperature=0.2,
     top_p=0.1,
-    max_tokens=1024
+    max_tokens=512
     )
     return completion.choices[0].message.content
     
@@ -475,7 +475,6 @@ def increment_suffix(s):
 def asqa(path):
     with open(path, "r", encoding="utf-8") as ed:
         eval_data = json.load(ed)
-    result_data = []
 
     for data in tqdm(eval_data, desc="process"):
         # try:
@@ -519,10 +518,5 @@ def asqa(path):
             pred_answers = call_llama(temp["question"], batch_chunks, PROMPT_GENERATOR)
             temp["model_ans"] = pred_answers
             
-        else:
-            temp["indices_for_model_select"] = policy_outputs
-        
-        result_data.append(temp)
-        with open("asqa1.json", "w", encoding="utf-8") as anf:
-            json.dump(result_data, anf, indent=4, ensure_ascii=False)
+        print(temp)
 

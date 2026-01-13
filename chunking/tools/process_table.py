@@ -4,7 +4,6 @@ Given a Markdown file as input, extract the tables from it and return them as a 
 
 import re
 
-# 链接和图片的基础正则（不跨行）
 LINK_PAREN_RE = re.compile(r'\[([^\]]+)\]\(([^)]+)\)')    
 IMG_PAREN_RE  = re.compile(r'!\[([^\]]*)\]\(([^)]+)\)')      
 LINK_REF_RE   = re.compile(r'\[([^\]]+)\]\[[^\]]*\]')        
@@ -248,7 +247,7 @@ def find_table_prev_headings(md_path: str) -> list[list]:
         return results
 
     h_idx = 0
-    for t_idx, t_line in enumerate(table_starts, start=1):  # t_idx 为 1-based 序号
+    for t_idx, t_line in enumerate(table_starts, start=1): 
         while h_idx < len(headings) and headings[h_idx][0] < t_line:
             h_idx += 1
         if h_idx == 0:

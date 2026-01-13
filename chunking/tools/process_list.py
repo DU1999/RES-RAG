@@ -8,12 +8,11 @@ import json
 import bisect
 
 LIST_ITEM_RE = re.compile(r'^(\s*)([*+-]|\d+[.)])\s+(.*)$')
-FENCE_RE = re.compile(r'^\s*(```|~~~)')  # 进入/退出代码围栏
+FENCE_RE = re.compile(r'^\s*(```|~~~)') 
 HEADING_RE = re.compile(r'^\s{0,3}(#{1,6})\s*(.+?)\s*(#+\s*)?$') 
 SETEXT_UNDERLINE_RE = re.compile(r'^\s{0,3}(=+|-+)\s*$')    
 
 def _clean_heading_text(text: str) -> str:
-    """清洗标题文本：去掉链接/图片标记、括号URL、重复空白等。"""
     text = remove_parentheses_by_prefixes(text)
     text = re.sub(r'!\[|\[|\]', '', text)  
     text = re.sub(r'\s+', ' ', text).strip()

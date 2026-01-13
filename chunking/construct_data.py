@@ -1,5 +1,5 @@
 """
-Use ASQA's training set to construct SFT data and GRPO data.
+Use ASQA's training set to construct SFT data.
 """
 import json
 from markdown_chunk import process_chunks
@@ -74,36 +74,7 @@ def construct_sft(input_path, output_path):
     with open(output_path, "w", encoding="utf-8") as tof:
         json.dump(sft_data, tof, indent=4, ensure_ascii=False)
 
-def construct_grpo(input_path, output_path):
-    with open(input_path, "r", encoding="utf-8") as tf:
-        train_data = json.load(tf)
-    
-    grpo_data = []
 
-    for td in tqdm(train_data, desc="processing"):
-        temp = {}
-        temp["sample_id"] = td["sample_id"]
-        temp["question"] = td["ambiguous_question"]
-        
-        temp["short_answers"] = []
-        for qps in td["qa_pairs"]:
-            for sas in qps["short_answers"]:
-                if sas not in temp["short_answers"]:
-                    temp["short_answers"].append(sas)
-        
-        temp["input_data"] = {}
-        temp["jsonld"] = {}
-        for idx, wps in enumerate(td["wikipages"]):
-            if wps["url"] and wps["htmlpage"]:
-                temp["input_data"][f"Document_{idx}"] = json.dumps(process_chunks(wps["htmlpage"]), ensure_ascii=False)
-                
-                temp["jsonld"][f"Document_{idx}"] = json.dumps(read_jsonld(wps["htmlpage"]), ensure_ascii=False)
-        
-        grpo_data.append(temp)
-        
-    with open(output_path, "w", encoding="utf-8") as tar_f:
-        for item in grpo_data:
-            tar_f.write(json.dumps(item, ensure_ascii=False) + "\n")
 
 
 
