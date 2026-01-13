@@ -6,7 +6,7 @@ base_model_path = "Qwen_Qwen3-4B-Instruct-2507"
 lora_ckpt_path = "checkpoint"  
 merged_model_path = "RES-RAG-MODEL" 
 
-# 1. 加载基座模型
+# Load base model
 model = AutoModelForCausalLM.from_pretrained(
     base_model_path,
     torch_dtype=torch.bfloat16, 
