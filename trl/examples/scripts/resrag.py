@@ -1,24 +1,13 @@
 """
-CUDA_VISIBLE_DEVICES=2 accelerate launch examples/scripts/grpo_retriever.py \
-  --model_name_or_path RES-RAG-SFT-MODEL\
-  --output_dir RES-RAG-GRPO-MODEL \
-  --learning_rate 1e-5 \
-  --dtype bfloat16 \
-  --max_prompt_length 8192 \
-  --max_completion_length 1024 \
-  --temperature 1.0 \
-  --top_p 0.8 \
-  --use_peft \
-  --lora_target_modules q_proj k_proj v_proj o_proj gate_proj up_proj down_proj \
-  --per_device_train_batch_size 1 \
-  --gradient_accumulation_steps 4 \
-  --num_generations 4 \
-  --beta 0.05 \
-  --log_completions \
-  --use_vllm \
-  --vllm_mode server \
-  --vllm_server_host localhost \
-  --vllm_server_port 8000 \
+accelerate launch examples/scripts/grpo_retriever.py \
+  --model_name_or_path \
+  --output_dir  \
+  --learning_rate  \
+  --dtype  \
+  --max_prompt_length  \
+  --max_completion_length  \
+  --temperature  \
+  --top_p  
 """
 import os
 import torch
@@ -45,54 +34,11 @@ import re
 from transformers import AutoTokenizer
 import math
 from collections import defaultdict
+from args import TrainingHyperparameters
+from prompts import PROMPT_GENERATOR, PROMPT_RETRIEVAL
+resragArgs = TrainingHyperparameters()
 
-
-PROMPT_GENERATOR = f"""
-You are a Reader expert. Your only task is to answer the given questions based only on the provided context paragraphs; output a list of short answers.
-For each Query, you will receive multiple documents associated with it. Each document consists of multiple Chunks, all in Markdown format.
----
-# Answering Guidelines
-1. Answer based on the context only; do not fabricate or introduce outside knowledge. If there is insufficient evidence, output [].
-2. Short answers, using concise entity names/numbers/dates/phrases; no explanations, prefixes or suffixes (e.g., "The answer is").
-3. When multiple answers are listed side by side (such as aliases, multiple entities, and multiple years), they are listed from high to low in order of confidence, and duplicates and noise are removed.
-4. Normalization: Remove unnecessary spaces and punctuation; retain numbers/units of measure as is; format dates according to the original text; preserve capitalization of proper nouns.
----
-# Output format
-Your output must be a parseable JSON array. Do not include any ``` or any other descriptive terms other than JSON objects. Your output should look like this:
-["ans1", ...]
-"""
-
-
-PROMPT_RETRIEVAL = f"""
-You are a Retrieval expert. Your sole responsibility is to receive a Query and Chunks from multiple documents, and then rigorously select the indexes(Integer) for the Chunks that are most relevant to the Query.
----
-Input Instructions: 
-You will receive a Query string and a dictionary of Chunks from multiple documents, where the Chunks are in the following form:
-{{
-    "Document_i": [[chunk_0], ... [chunk_n]]
-}}
----
-Selection and Sorting Rules: 
-1. A Query typically corresponds to multiple documents, so you can select multiple Chunks from each document and output their indices (integers);
-2. You need to carefully consider which Chunks in each document might contain the answer to the current Query. The Chunks you select will be input along with the Query to the downstream reader to generate the answer;
----
-Output Format: 
-Regardless, you must adhere to the following output rules:
-1. Your output must be a parsable JSON object;
-2. Do not output any ``` tags;
-3. Do not output any introductory words;
-4. Your output must be the indexes(Integer) of the selected Chunks in each document;
-5. The Chunks you select must be sorted in descending order of similarity to the Query.
----
-Output Example: 
-{{
-    "Document_0": [13, 2, 45, 7], 
-    "Document_1": [5, 17, 0, 3, 8, 6, 33], 
-}}
-"""
-
-
-client = OpenAI(api_key="", base_url="")
+generator_client = OpenAI(api_key=resragArgs.generator_api, base_url=resragArgs.generator_url)
 
 
 def _normalize_text(s: str) -> str:
@@ -138,7 +84,7 @@ def _as_items(ans: Union[str, Iterable[str]]) -> List[str]:
             # It only splits by strong delimiters (such as line breaks, semicolons, etc.), and by default does not split by commas to avoid unintended consequences.
             tmp = ans
             for sep in _SEPS:
-                if sep != "，":  # 避免默认按逗号切
+                if sep != "，": 
                     tmp = tmp.replace(sep, "\n")
             raw_items = [t for t in (t.strip() for t in tmp.split("\n")) if t]
     else:
@@ -177,15 +123,15 @@ def compute_reward_scalar_contrastive(
     chunk_budget: List[Dict[str, Tuple[float, float]]],
     indicator: Optional[List[int]] = None, 
 
-    alpha_f1: float = 2.0,
-    alpha_ret: float = 1.0,
+    alpha_f1: float = resragArgs.alpha_f1,
+    alpha_ret: float = resragArgs.alpha_ret,
 
-    bad_answer_penalty: float = -2.0,
-    sys_fail_penalty: float = -5.0,
+    bad_answer_penalty: float = resragArgs.bad_answer_penalty,
+    sys_fail_penalty: float = resragArgs.sys_fail_penalty,
 
-    scale: float = 1.0,
-    clip_min: float = -5.0,
-    clip_max: float = 5.0,
+    scale: float = resragArgs.scale,
+    clip_min: float = resragArgs.clip_min,
+    clip_max: float = resragArgs.clip_max,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
     Indicator semantics:
@@ -353,13 +299,13 @@ def call_llama(
     batch_chunks: List[Union[str, List[Dict[str, str]]]],
     system_prompt: str, 
     *,
-    model: str = "meta/llama-3.1-8b-instruct",
-    max_tokens: int = 10240,
-    temperature: float = 0.2,
-    top_p: float = 0.1,
-    max_workers: int = 8,
-    max_retries: int = 3,
-    retry_base_sleep: float = 0.5
+    model: str = resragArgs.generator_model,
+    max_tokens: int = resragArgs.generator_tokens,
+    temperature: float = resragArgs.generator_temperature,
+    top_p: float = resragArgs.generator_topp,
+    max_workers: int = resragArgs.generator_workers,
+    max_retries: int = resragArgs.generator_retries,
+    retry_base_sleep: float = resragArgs.generator_sleep
     ) -> List[Dict[str, Any]]:
 
     def _build_messages(question, item: Union[str, List[Dict[str, str]]]) -> List[Dict[str, str]]:
@@ -371,7 +317,7 @@ def call_llama(
             ]
 
     def _call_once(messages: List[Dict[str, str]]) -> Tuple[Dict[str, Any], None]:
-        resp = client.chat.completions.create(
+        resp = generator_client.chat.completions.create(
             model=model,
             messages=messages,
             max_tokens=max_tokens,
@@ -732,7 +678,7 @@ def parse_one(x):
     try:
         parsed = json.loads(raw)
     except json.JSONDecodeError as e:
-        print("JSON 解析失败:", e, "raw:", repr(raw))
+        print("JSON parsing failed: ", e, "raw:", repr(raw))
         parsed = {}
     return [{**msg, "content": parsed}]
 
@@ -771,9 +717,6 @@ def res_rag_reward(
             indicator.append(1)
             policy_outputs.append(sample)
 
-
-    print(policy_outputs)
-
     chunk_budget = []
 
     batch_chunks = []
@@ -791,8 +734,7 @@ def res_rag_reward(
                 no_lap_doc_index = list(dict.fromkeys(doc_index))
                 for idx in no_lap_doc_index:
                     chunks[doc_name].append(_data[doc_name][idx])
-            else:
-                print(f"{sample_id[i]} no exits {doc_name}: {_data.keys()}")
+
         chunk_budget.append(doc_chunk_index)
         
         # Constructing batch input
@@ -804,9 +746,6 @@ def res_rag_reward(
         pa = parse_json_list(pa)
         parse_pred_answers.append(pa)
         
-    print(parse_pred_answers)
-    print("=" * 100)
-    
     # Calculate the reward
     rewards_t, keep_mask_t = compute_reward_scalar_contrastive(
         pred_answers_batch=parse_pred_answers,  
@@ -817,8 +756,8 @@ def res_rag_reward(
         device=device,
         chunk_budget=chunk_budget,
         indicator=indicator,
-        alpha_f1=2.0,
-        alpha_ret=1.0,
+        alpha_f1=resragArgs.alpha_f1,
+        alpha_ret=resragArgs.alpha_ret,
     )
     rewards_cpu = rewards_t.detach().cpu().tolist()
     keep_cpu = keep_mask_t.detach().cpu().tolist()
@@ -881,5 +820,4 @@ if __name__ == "__main__":
     if training_args.push_to_hub:
         trainer.push_to_hub(dataset_name=script_args.dataset_name)
     
-    print("===== end =====")
 
