@@ -167,18 +167,15 @@ def compute_reward_scalar_contrastive(
     pred_answers_batch: List[Any],
     gold_answers_batch: List[Any],
 
-    # 策略输出（chunk indices JSON）
     pred_selections_batch: List[Any],
 
-    # gold labels（chunk indices JSON，字符串或 dict）
     labels_batch: List[Any],
 
-    # 用于分组（同一 question 的多条 generation）
     sample_id: Optional[List[Any]],
 
     device,
     chunk_budget: List[Dict[str, Tuple[float, float]]],
-    indicator: Optional[List[int]] = None,  # -1=外部故障(跳过), 0=策略格式错(训练), 1=正常
+    indicator: Optional[List[int]] = None, 
 
     alpha_f1: float = 2.0,
     alpha_ret: float = 1.0,
@@ -191,10 +188,10 @@ def compute_reward_scalar_contrastive(
     clip_max: float = 5.0,
 ) -> Tuple[torch.Tensor, torch.Tensor]:
     """
-    indicator 语义：
-      -1: 外部/系统故障，不归因策略，keep=False（上层返回 None 跳过）
-       0: 策略输出格式错误/空输出/不可解析，属于可学习错误，keep=True（固定负奖励）
-       1: 正常样本，按 (alpha_f1*ans_f1 + alpha_ret*ret_f1 - budget_penalty) 计算
+    Indicator semantics:
+    -1: External/system failure, not attributable to the strategy, keep=False (upper layer returns None and skips)
+    0: Strategy output format error/empty output/unparsable, considered a learnable error, keep=True (fixed negative reward)
+    1: Normal sample
     """
     def _safe_json_loads(x: Any) -> Any:
         if x is None:
@@ -291,7 +288,6 @@ def compute_reward_scalar_contrastive(
     if len(indicator) != bs:
         raise ValueError(f"indicator length ({len(indicator)}) must match batch size ({bs})")
 
-    # 按 sample_id 分组
     group2idx = defaultdict(list)
     if sample_id is None:
         for i in range(bs):
@@ -306,46 +302,36 @@ def compute_reward_scalar_contrastive(
     keep: List[bool] = [True] * bs
 
     for _, idxs in group2idx.items():
-        # 先把该组中 indicator==-1 的外部故障标记掉（直接跳过）
         for i in idxs:
             if indicator[i] == -1:
                 keep[i] = False
-                rewards[i] = sys_fail_penalty  # 仅用于日志/观测
+                rewards[i] = sys_fail_penalty 
             elif indicator[i] == 0:
-                # 策略格式错：要训练（不跳过），先给固定负奖励，后面不依赖 labels 也能训练格式
                 keep[i] = True
-                rewards[i] = sys_fail_penalty  # 固定负奖励（可学习信号）
-            # indicator==1 暂不处理，等 labels 解析后再算
+                rewards[i] = sys_fail_penalty
 
-        # 尝试解析该组 labels（通常同组相同）
         gold_sel = _normalize_selection_obj(labels_batch[idxs[0]])
 
         if gold_sel is None:
-            # labels 坏了：这是数据/上游问题
-            # - indicator==1 的正常样本：跳过（None）
-            # - indicator==0 的格式错样本：仍然保留上面设置的 sys_fail_penalty 训练格式
+
             for i in idxs:
                 if indicator[i] == 1:
                     keep[i] = False
                     rewards[i] = 0.0
             continue
 
-        # labels 正常：计算 indicator==1 的正常样本 reward
         for i in idxs:
             if indicator[i] != 1:
-                # -1 已跳过；0 已给固定惩罚
                 continue
 
             pen = budget_penalty(chunk_budget[i])
 
-            # 答案项
             if is_bad_answer(pred_answers_batch[i]):
                 ans_term = bad_answer_penalty
             else:
                 ans_f1_val = float(f1_score(pred_answers_batch[i], gold_answers_batch[i]))
                 ans_term = alpha_f1 * ans_f1_val
 
-            # 检索项
             pred_sel = _normalize_selection_obj(pred_selections_batch[i])
             if pred_sel is None:
                 ret_term = 0.0
