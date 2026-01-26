@@ -80,13 +80,6 @@ def build_document_selection_schema(num_doc: int, num_chunks: int):
         "Document_1": [...],
         ...
     }
-
-    Parameters:
-    num_doc: The number of documents, e.g., 2 -> Document_0, Document_1
-    num_chunks: The total number of chunks in each document, with indices ranging from [0, num_chunks-1]
-
-    Returns:
-    A JSON Schema (Python dictionary) that can be directly used with vLLM's guided_json / structured_outputs.
     """
 
     properties = {}
@@ -148,7 +141,7 @@ tokenizer = AutoTokenizer.from_pretrained("RES-RAG-GRPO-MODEL")
 
 def _chat_len(messages: List[Dict[str, Any]], tokenizer: AutoTokenizer) -> int:
     """
-    Calculate the token length of chat messages (compatible with `apply_chat_template`).
+    Calculate the token length of chat messages.
     """
     if hasattr(tokenizer, "apply_chat_template"):
         ids = tokenizer.apply_chat_template(
