@@ -5,7 +5,6 @@ import re
 def remove_all_lists(html: str, parser: str = "lxml") -> str:
     """
     Remove: ul/ol/li/menu/dir/dl/dt/dd elements, nodes with a list semantic role, and nodes with `style=display:list-item`. 
-    Added protection against malformed HTML by setting `attrs=None`.
     """
     soup = BeautifulSoup(html, parser)
 
@@ -46,4 +45,5 @@ def remove_all_lists(html: str, parser: str = "lxml") -> str:
                 continue
 
     return soup.decode(formatter=None)
+
 
