@@ -8,12 +8,7 @@ import html as _html
 
 def clean_html(html: str, remove_style_tags: bool = True, pretty: bool = False) -> str:
     """
-    Cleaning HTML:
-    1) Only keep the <title> tag within the <head> section;
-    2) Remove all <script> tags (including the tags themselves);
-    3) Remove all comments;
-    4) Remove all attributes from all tags (class/id/style/href/aria-*/data-* etc.);
-    5) Additionally remove all <img> tags. 
+    Cleaning HTML. 
 
     Parameters:
     html: The original HTML text
@@ -303,6 +298,7 @@ def harpa_clean(html_doc: str) -> str:
     s8 = compress_redundant_divs(s7)
     s9 = re.sub("\n", "", s8)
     return s9
+
 
 
 
