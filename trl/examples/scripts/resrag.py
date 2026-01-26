@@ -81,7 +81,6 @@ def _as_items(ans: Union[str, Iterable[str]]) -> List[str]:
         if parsed is not None:
             raw_items = parsed
         else:
-            # It only splits by strong delimiters (such as line breaks, semicolons, etc.), and by default does not split by commas to avoid unintended consequences.
             tmp = ans
             for sep in _SEPS:
                 if sep != "，": 
@@ -369,7 +368,6 @@ def call_llama(
     return res
 
 
-# Enable logging in a Hugging Face Space
 os.environ.setdefault("TRACKIO_SPACE_ID", "trl-trackio")
 
 
