@@ -1,5 +1,4 @@
 """
-Input an HTML string, convert it to Markdown, and output the segmented Markdown result.
 The process is divided into two parts: lists/tables are processed separately, and everything else is treated as text.
 """
 
@@ -19,15 +18,7 @@ import random
 
 def remove_edit_tags(md_path: str, *, backup: bool = False, encoding: str = "utf-8") -> None:
     """
-    Replace all instances of `[edit]` in the Markdown file with an empty string. 
-    - Case-insensitive: `[edit]`, `[Edit]`, `[EDIT]`
-    - Handles spaces: `[ edit ]`, `[  edit]`
-    - Handles link format: `[edit](...)`  Only the `[edit]` text and the subsequent link parentheses are removed.
-    - Cleans up extra spaces at the end of lines caused by the deletion.
-
-    :param md_path: Path to the Markdown file
-    :param backup: Whether to create a .bak backup before overwriting
-    :param encoding: File encoding (default utf-8)
+    Replace all instances of `edit` in the Markdown file with an empty string. 
     """
     p = Path(md_path)
     if not p.exists():
@@ -50,12 +41,6 @@ def remove_edit_tags(md_path: str, *, backup: bool = False, encoding: str = "utf
 def split_markdown_by_headings(path: str):
     """
     Using Markdown headings as separators, build blocks starting from the first heading. 
-    Rules:
-    - Heading lines: Start with 1-6 '#' characters followed by a space (up to 3 leading spaces are allowed). 
-    - Non-heading lines: Remove leading and trailing whitespace; if not empty, add to the current block. 
-    - When a new heading is encountered, if the current block is not empty, collect it as a block. 
-    - If a heading has no content below it, no block is created. 
-    - At the end of the file, if the current block is not empty, add it to the result. 
     Returns: List[List[str]]
     """
     heading_re = re.compile(r'^\s{0,3}#{1,6}\s')
